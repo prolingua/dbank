@@ -2,7 +2,7 @@
   "name": "dbank",
   "version": "0.1.0",
   "description": "Decentralized Bank",
-  "author": "dev@dappuniversity.com",
+  "author": "prolingua.geo@gmail.com",
   "homepage": ".",
   "dependencies": {
     "@openzeppelin/contracts": "3.3.0",
@@ -24,7 +24,6 @@
     "react-scripts": "3.4.3",
     "truffle-hdwallet-provider-privkey": "0.3.0",
     "web3": "1.2.6"
-    
   },
   "scripts": {
     "start": "set PORT=8055 && react-scripts start",

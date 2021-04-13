@@ -1,17 +1,19 @@
-import { Tabs, Tab } from 'react-bootstrap'
+import { Tabs, Tab,Table } from 'react-bootstrap'
 import dBank from '../abis/dBank.json'
 import React, { Component } from 'react';
 import Token from '../abis/Token.json'
 import dbank from '../dbank.png';
 import Web3 from 'web3';
-import './App.css';
+import Spinner from 'react-bootstrap/Spinner';
 
 //h0m3w0rk - add new tab to check accrued interest
 
 class App extends Component {
 
   async componentWillMount() {
-    await this.loadBlockchainData(this.props.dispatch)
+    await this.loadBlockchainData(this.props.dispatch);
+    await this.subscribeToEvents(this.state.token, this.state.dbank, this.state.account);
+    this.setState({loading:false});
   }
 
   async loadBlockchainData(dispatch) {
@@ -31,16 +33,46 @@ class App extends Component {
           const dBankAddress = dBank.networks[netId].address;          
           const token = new web3.eth.Contract(Token.abi, tokenAddress);
           const dbank = new web3.eth.Contract(dBank.abi, dBankAddress);
+
+          const depositStream = await dbank.getPastEvents('Deposit', { fromBlock: 0, toBlock: 'latest'});
+          let deposits = [];
+          if(depositStream && depositStream.length > 0){
+            depositStream.forEach( (item, index) => {
+              if(item.returnValues.user === accounts[0]){
+                deposits.push({index: index, amount: item.returnValues.etherAmount/(10**18), epochTime: item.returnValues.timeStart });
+              }
+            })
+          }
+
+          const withdrawStream = await dbank.getPastEvents('Withdraw', { fromBlock: 0, toBlock: 'latest'});
+          let withdraws = [];
+          if(withdrawStream && withdrawStream.length > 0){
+            let ind = 0;
+            withdrawStream.forEach( (item, index) => {
+              if(item.returnValues.user === accounts[0]){
+                withdraws.push({index: index, amount:item.returnValues.etherAmount/(10**18), interest: item.returnValues.interest/(10**18), 
+                  epochTime: parseInt(deposits[ind].epochTime) + parseInt(item.returnValues.depositTime),                 
+                });
+                ind++;
+              }
+            })
+          }
+
           const tokenBalance = await token.methods.balanceOf(this.state.account).call();
           const isDeposited = await dbank.methods.isDeposited(this.state.account).call();
           const etherBalanceOf = await dbank.methods.etherBalanceOf(this.state.account).call();
           const bankBalance = await web3.eth.getBalance(dBankAddress);
 
           this.setState({token: token, dbank: dbank, dBankAddress: dBankAddress, 
-                         bankBalance: bankBalance,
-                         tokenBalance: tokenBalance, isDeposited: isDeposited, 
-                         etherBalanceOf : etherBalanceOf});
+            bankBalance: bankBalance,
+            tokenBalance: tokenBalance, isDeposited: isDeposited, 
+            etherBalanceOf : etherBalanceOf,
+            withdraws: withdraws,
+            deposits: deposits
+           });
+
         } catch (e) {
+          this.setState({loading:false});
           console.log('Error', e);
           alert(netId);
           alert('Contracts not deployed to the current network');
@@ -55,21 +87,38 @@ class App extends Component {
       window.alert('Please install Metamask');
     }
 
-      //in try block load contracts
+  }
 
-    //if MetaMask not exists push alert
+  async subscribeToEvents(token,dbank, account) {
+    token.events.MinterChanged({}, (error, event) => {
+      console.log(event.returnValues);
+    })
+
+    dbank.events.Deposit({}, (error, event) => {
+      this.setState({loading:true});
+      this.loadBlockchainData();
+      this.setState({loading:false});           
+    })
+
+    dbank.events.Withdraw({}, async (error, event) => {
+      this.setState({loading:true});
+      this.loadBlockchainData();
+      this.setState({loading:false});                  
+    })
   }
 
   async deposit(amount) {
     if(this.state.dbank !== 'undefined'){
       try{
+        this.setState({loading:true});
         await this.state.dbank.methods.deposit().send({value: amount.toString(), from: this.state.account});
         const balance = await this.state.web3.eth.getBalance(this.state.account);
         const bankBalance = await this.state.web3.eth.getBalance(this.state.dBankAddress);
         const isDeposited = await this.state.dbank.methods.isDeposited(this.state.account).call();
         const etherBalanceOf = await this.state.dbank.methods.etherBalanceOf(this.state.account).call();
-        this.setState({balance: balance, bankBalance: bankBalance, isDeposited: isDeposited, etherBalanceOf: etherBalanceOf});
+        this.setState({balance: balance, bankBalance: bankBalance, isDeposited: isDeposited, etherBalanceOf: etherBalanceOf, loading: false});
       } catch(e) {
+        this.setState({loading:false});
         console.log('Error, deposit: ', e);
       }
     }
@@ -79,18 +128,19 @@ class App extends Component {
     e.preventDefault();
     if(this.state.dbank !== 'undefined'){
       try{
+        this.setState({loading:true});
         await this.state.dbank.methods.withdraw().send({from: this.state.account});
         const balance = await this.state.web3.eth.getBalance(this.state.account);
         const bankBalance = await this.state.web3.eth.getBalance(this.state.dBankAddress);
         const tokenBalance = await this.state.token.methods.balanceOf(this.state.account).call();
         const isDeposited = await this.state.dbank.methods.isDeposited(this.state.account).call();
         const etherBalanceOf = await this.state.dbank.methods.etherBalanceOf(this.state.account).call();
-        this.setState({balance: balance, bankBalance: bankBalance,  tokenBalance: tokenBalance, isDeposited: isDeposited, etherBalanceOf : etherBalanceOf});
+        this.setState({balance: balance, bankBalance: bankBalance,  tokenBalance: tokenBalance, isDeposited: isDeposited, etherBalanceOf : etherBalanceOf, loading: false});
       } catch(e) {
+        this.setState({loading:false});
         console.log('Error, deposit: ', e);
       }
-    }
-    
+    }    
   }
 
   constructor(props) {
@@ -105,7 +155,10 @@ class App extends Component {
       dBankAddress: null,
       tokenBalance:0,
       isDeposited:false,
-      etherBalanceOf: 0
+      etherBalanceOf: 0,
+      loading: true,
+      withdraws: [],
+      deposits: [],
     }
   }
 
@@ -115,7 +168,6 @@ class App extends Component {
         <nav className="navbar navbar-dark fixed-top bg-dark flex-md-nowrap p-0 shadow">
           <a
             className="navbar-brand col-sm-3 col-md-2 mr-0"
-            href="http://www.dappuniversity.com/bootcamp"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -132,7 +184,8 @@ class App extends Component {
           <div className="row">
             <main role="main" className="col-lg-12 d-flex text-center">
               <div className="content mr-auto ml-auto">
-              <Tabs defaultActiveKey="profile" id="uncontrolled-tab-example">
+              {this.state.loading ? <div>Wait...<Spinner size="sm" animation="grow"/></div> :
+              <Tabs  id="uncontrolled-tab-example" defaultActiveKey="balance">
                 <Tab eventKey="deposit" title="Deposit">
                   <div>
                     <br/>
@@ -187,7 +240,73 @@ class App extends Component {
                   </table>
                   </div>                  
                 </Tab>
+                <Tab eventKey="trxhistory" title="Trx History">
+                  <Tabs>
+                    <Tab eventKey="deposithistory" title="Deposit History">
+                      <div>
+                      <div><br/></div>
+                          <Table striped bordered hover>
+                            <thead>
+                              <tr style={{backgroundColor:'aliceblue'}}>
+                                <th>Date</th>
+                                <th>Ether</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                            {
+                              this.state.deposits.map( (deposit) => { 
+                                let date =  new Date (deposit.epochTime * 1000);
+                                let stringDate = date.getUTCFullYear() + '-' + (date.getUTCMonth() < 10 ? '0' : '') + date.getUTCMonth() + '-' + (date.getUTCDate() < 10 ? '0' : '') + date.getUTCDate() + ' ' + (date.getUTCHours() < 10 ? '0' :'') + date.getUTCHours() + ':' + (date.getUTCMinutes() < 10 ? '0' : '') + date.getUTCMinutes() + ':' + (date.getUTCSeconds() < 10 ? '0' : '') + date.getUTCSeconds();   
+                                return (
+                                <tr>
+                                  <td style={{textAlign:'left'}}>{stringDate}</td>
+                                  <td style={{textAlign:'right'}}>{deposit.amount.toFixed(5)}</td>
+                                </tr>
+                                )
+                                }
+                              )
+                            } 
+                            </tbody>                                                      
+                         </Table>                        
+                      </div> 
+                    </Tab>
+                    
+                    <Tab eventKey="withdrawhistory" title="Withdraw History">
+                       <div>
+                         <div><br/></div>
+                          <Table striped bordered hover>
+                            <thead>
+                              <tr style={{backgroundColor:'aliceblue'}}>
+                                <th>Date</th>
+                                <th>Ether</th>
+                                <th>Token</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                            {
+                              this.state.withdraws.map( (withdraw) => {                              
+                                let date =  new Date (withdraw.epochTime * 1000);
+                                let stringDate = date.getUTCFullYear() + '-' + (date.getUTCMonth() < 10 ? '0' : '') + date.getUTCMonth() + '-' + (date.getUTCDate() < 10 ? '0' : '') + date.getUTCDate()  + ' ' + (date.getUTCHours() < 10 ? '0' :'') + date.getUTCHours() + ':' + (date.getUTCMinutes() < 10 ? '0' : '') + date.getUTCMinutes() + ':' + (date.getUTCSeconds() < 10 ? '0' : '') + date.getUTCSeconds();   
+                                return (
+                                <tr>
+                                  <td style={{textAlign:'left'}}>{stringDate}</td>
+                                  <td style={{textAlign:'right'}}>{withdraw.amount.toFixed(5)}</td>
+                                  <td style={{textAlign:'right'}}>{withdraw.interest}</td>
+                                </tr>
+                                )
+                                }
+                              )
+                            } 
+                            </tbody>                                                      
+                         </Table>
+                       </div>
+                    </Tab>
+                    
+                  </Tabs>
+
+                </Tab>
               </Tabs>
+              }
               </div>
             </main>
           </div>
@@ -196,5 +315,6 @@ class App extends Component {
     );
   }
 }
+
 
 export default App;

@@ -2,10 +2,11 @@
 pragma solidity >=0.6.0 <0.8.0;
 
 import "./Token.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract dBank {
+  using SafeMath for uint256;
 
-  //assign Token contract to variable
   Token private token;
   
   //add mappings
@@ -18,18 +19,16 @@ contract dBank {
   event Deposit(address indexed user, uint etherAmount, uint timeStart);
   event Withdraw(address indexed user, uint etherAmount, uint depositTime, uint interest);
 
-  //pass as constructor argument deployed Token contract
-  //constructor(Token _token) public {
-  constructor(Token _token) public {
-    //assign token deployed contract to variable
-    token = _token;
+  
+  constructor(address _tokenAddress) public {
+    token = Token(_tokenAddress);
   }
 
   function deposit() payable public {
     require(isDeposited[msg.sender] == false, 'Error, deposit already active');
     require(msg.value >= 1e16, 'Error, deposit must be >= 0.01 ETH');
 
-    etherBalanceOf[msg.sender] = etherBalanceOf[msg.sender] + msg.value;
+    etherBalanceOf[msg.sender] = (etherBalanceOf[msg.sender]).add(msg.value);
     depositStart[msg.sender] =  block.timestamp;
 
     isDeposited[msg.sender] = true;
@@ -42,9 +41,9 @@ contract dBank {
     //assign msg.sender ether deposit balance to variable for event
     uint userBalance = etherBalanceOf[msg.sender];
 
-    uint depositTime = block.timestamp - depositStart[msg.sender];
+    uint depositTime = (block.timestamp).sub(depositStart[msg.sender]);
 
-    uint interestPerSecond = 31668017 * (etherBalanceOf[msg.sender]/1e16);
+    uint interestPerSecond = 31668017 * ((etherBalanceOf[msg.sender]).div(1e16));
     uint interest = interestPerSecond * depositTime;
 
     msg.sender.transfer(userBalance);
@@ -56,33 +55,5 @@ contract dBank {
 
     //emit event
     emit Withdraw(msg.sender, userBalance, depositTime, interest);
-  }
-
-  function borrow() payable public {
-    //check if collateral is >= than 0.01 ETH
-    //check if user doesn't have active loan
-
-    //add msg.value to ether collateral
-
-    //calc tokens amount to mint, 50% of msg.value
-
-    //mint&send tokens to user
-
-    //activate borrower's loan status
-
-    //emit event
-  }
-
-  function payOff() public {
-    //check if loan is active
-    //transfer tokens from user back to the contract
-
-    //calc fee
-
-    //send user's collateral minus fee
-
-    //reset borrower's data
-
-    //emit event
-  }
+  }  
 }

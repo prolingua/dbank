@@ -24,7 +24,7 @@ contract dBank {
     token = Token(_tokenAddress);
   }
 
-  function deposit() payable public {
+  function deposit() payable external {
     require(isDeposited[msg.sender] == false, 'Error, deposit already active');
     require(msg.value >= 1e16, 'Error, deposit must be >= 0.01 ETH');
 
@@ -36,7 +36,7 @@ contract dBank {
     //emit Deposit event
   }
 
-  function withdraw() public {
+  function withdraw() external {
     require(isDeposited[msg.sender] == true, 'Error, no deposit yet');
     //assign msg.sender ether deposit balance to variable for event
     uint userBalance = etherBalanceOf[msg.sender];

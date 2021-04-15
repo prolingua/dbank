@@ -11,12 +11,12 @@ import Spinner from 'react-bootstrap/Spinner';
 class App extends Component {
 
   async componentWillMount() {
-    await this.loadBlockchainData(this.props.dispatch);
+    await this.loadBlockchainData();
     await this.subscribeToEvents(this.state.token, this.state.dbank, this.state.account);
     this.setState({loading:false});
   }
 
-  async loadBlockchainData(dispatch) {
+  async loadBlockchainData() {
     
     //check if MetaMask exists
     if(typeof(window.ethereum !== 'undefined')){

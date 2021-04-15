@@ -12,7 +12,7 @@ class App extends Component {
 
   async componentWillMount() {
     await this.loadBlockchainData();
-    await this.subscribeToEvents(this.state.token, this.state.dbank, this.state.account);
+    await this.subscribeToEvents(this.state.token, this.state.dbank);
     this.setState({loading:false});
   }
 
@@ -89,7 +89,7 @@ class App extends Component {
 
   }
 
-  async subscribeToEvents(token,dbank, account) {
+  async subscribeToEvents(token,dbank) {
     token.events.MinterChanged({}, (error, event) => {
       console.log(event.returnValues);
     })
